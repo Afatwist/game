@@ -22,11 +22,11 @@ class Arm
 			],
 			[
 				'id' => self::SCISSORS,
-				'title' => 'бумага'
+				'title' => 'ножницы'
 			],
 			[
 				'id' => self::PAPER,
-				'title' => 'ножницы'
+				'title' => 'бумага'
 			],
 		];
 		return $items;
