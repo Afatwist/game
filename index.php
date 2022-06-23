@@ -6,10 +6,12 @@
  * 	
  * 	Все правила и примеры использования описаны в конце файла. 
  * 	
- * 	Версия 1.2.0
+ * 	Версия 1.2.5
  * 	Изменения:
  * 		небольшие улучшения и оптимизация
- * 		исправлены найденные ошибки 
+ * 		исправлены найденные ошибки
+ * 		оптимизация некоторых методов в классе Game
+ * 		переработан алгоритм игры для 3 игроков
  */
 
 /**
@@ -126,6 +128,7 @@ class Player
 	public function addCoins($coins)
 	{
 		$this->coins = $this->coins + $coins;
+		$this->setMaxCoins();
 	}
 
 	/**
@@ -146,7 +149,10 @@ class Player
 		return $this->coins;
 	}
 
-	public function setMaxCoins()
+	/**
+	 * Устанавливает максимальное количество монет на счету игрока
+	 */
+	private function setMaxCoins()
 	{
 		if ($this->maxCoins < $this->coins) {
 			$this->maxCoins = $this->coins;
@@ -162,12 +168,11 @@ class Player
 	}
 
 	/**
-	 * общее количество сыгранных игр равно количеству сыгранных раундов
-	 * @param int $gameCount
-	 */
-	public function addTotalGame($gameCount)
+	 * общее количество сыгранных игр
+	 *	 */
+	public function addTotalGame()
 	{
-		$this->totalGame = $gameCount;
+		++$this->totalGame;
 	}
 }
 
@@ -297,11 +302,14 @@ class Game
 
 	/**
 	 * Установить количество раундов,
-	 * если не указать значение,
+	 * если не указать значение, или указать 0
 	 * то игра будет длится, пока один из игроков не выиграет все монеты противников
+	 * @param int|null $amount
 	 */
 	public function setRoundAmount($amount = null)
 	{
+		if (!is_null($amount) and (!is_numeric($amount) or $amount < 0)) die('Количество раундов должно быть положительным числом! Введено: ' . $amount);
+		if ($amount == 0) $amount = null;
 		$this->roundAmount = $amount;
 		return $this;
 	}
@@ -465,6 +473,7 @@ class Game
 		// игроки выбирают фигуру а так же подсчет выбранных фигур
 		foreach ($this->players as $player) {
 			$this->countItem($player->setArm());
+			$player->addTotalGame();
 		}
 
 		// сравнение фигур
@@ -626,10 +635,8 @@ class Game
 		$prize = $this->prize($winners);
 
 		foreach ($winners as $winner) {
-			$winner->addTotalGame($this->showPlayedRound());
 			$winner->addWin();
 			$winner->addCoins($prize);
-			$winner->setMaxCoins();
 			$winner->freeArm();
 		}
 	}
@@ -641,7 +648,6 @@ class Game
 	private function loser($losers)
 	{
 		foreach ($losers as $loser) {
-			$loser->addTotalGame($this->showPlayedRound());
 			$loser->removeCoins($this->bet);
 			$loser->freeArm();
 		}
@@ -655,8 +661,7 @@ class Game
 	{
 		++$this->drawTotalCount;
 		foreach ($players as $player) {
-			$player->addTotalGame($this->showPlayedRound());
-			//$player->freeArm();
+			$player->freeArm();
 			$this->makeDrawTax($player);
 		}
 		$this->drawCountClear();
@@ -779,8 +784,9 @@ $game->goToGame($joe)->goToGame($joan)->goToGame($bank);
 
 
 #### Параметры игры ####
-// установить количество раундов, которые будут сыграны, если у игроков закончатся монеты раньше, чем будут сыграны все раунды, игра прекратится. Если оставить пустым, то игра будет идти, пока один из игроков не выиграет все монеты у остальных
-$game->setRoundAmount();
+// установить количество раундов, которые будут сыграны, если у игроков закончатся монеты раньше, чем будут сыграны все раунды, игра прекратится.
+// Если оставить пустым или поставить '0'(ноль), то игра будет идти, пока один из игроков не выиграет все монеты у остальных
+$game->setRoundAmount(100);
 
 // установить размер ставки за каждый раунд, она должна быть меньше, чем количество монет на счету у игроков
 $game->setBet(50);
