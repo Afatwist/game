@@ -1,7 +1,21 @@
 <?php
+//set_time_limit(0); // неограниченное время работы скрипта;
 
 /**
- * содержит массив возможных фигур, и возвращает одну из них в виде объекта
+ * 	Игра "Камень-Ножницы-Бумага"
+ * 	
+ * 	Все правила и примеры использования описаны в конце файла. 
+ * 	
+ * 	Версия 1.2.0
+ * 	Изменения:
+ * 		небольшие улучшения и оптимизация
+ * 		исправлены найденные ошибки 
+ */
+
+/**
+ * содержит массив возможных фигур,
+ * возвращает id случайной фигуры,
+ * или title фигуры по указанному id 
  */
 class Arm
 {
@@ -78,22 +92,6 @@ class Player
 		$this->coins = $coins; // монет на счету
 		$this->maxCoins = $coins; // максимум монет
 		$this->arm = null; // id выброшенной фигуры
-		return $this;
-	}
-
-	/**
-	 * получить id игрока
-	 */
-	public function getId()
-	{
-		return $this->id;
-	}
-
-	/**
-	 * @return object возвращает информацию о игроке в виде объекта
-	 */
-	public function show()
-	{
 		return $this;
 	}
 
@@ -179,7 +177,6 @@ class Game
 	private $playedRound = 0; // сыгранные раунды
 	private $bet; // размер ставки в игре
 	private $players = []; // массив с пользователями
-	private $countPlayers = 0;
 	private $gameResult = []; // результаты игры
 	private $drawTax = 0; // штраф за ничью
 	private $drawRate = 0; // количество ничьих до штрафа
@@ -233,8 +230,8 @@ class Game
 	private function playersCheckId(Player $player)
 	{
 		foreach ($this->players as $gamer) {
-			if ($player->getId() == $gamer->getId()) {
-				var_dump('У нового игрока: ', $player->show(), 'Id совпадает с уже существующим: ', $gamer->show());
+			if ($player->id == $gamer->id) {
+				var_dump('У нового игрока: ', $player, 'Id совпадает с уже существующим: ', $gamer);
 				die('Id у игрока должен быть уникальным! ');
 			}
 		}
@@ -263,7 +260,7 @@ class Game
 	private function sortPlayersByCoins()
 	{
 		foreach ($this->players as $player) {
-			$array[$player->getId()] = $player->getCoins();
+			$array[$player->id] = $player->getCoins();
 		}
 
 		arsort($array);
@@ -271,7 +268,7 @@ class Game
 
 		foreach ($array as $id => $coins) {
 			foreach ($this->players as $player) {
-				if ($player->getId() == $id) {
+				if ($player->id == $id) {
 					$this->gameResult[$i++] = $player;
 				}
 			}
@@ -335,9 +332,9 @@ class Game
 
 	/**
 	 * устанавливает количество монет для ставки на каждый раунд игры, 
-	 * она будет добавлена к монетам победителя
-	 * и забрана у проигравшего
-	 * Если победителей несколько, то ставка делится поровну между ними
+	 * она будет собрана со всех игроков в раунде и помещена в общий банк,
+	 * он достается победителю или делится между игроками, 
+	 * если победителей несколько
 	 */
 	public function setBet($bet = 1)
 	{
@@ -354,6 +351,26 @@ class Game
 	}
 
 	/**
+	 * сумма ставок всех игроков в текущем раунде
+	 */
+	private function roundBank()
+	{
+		return $this->countPlayers() * $this->getBet();
+	}
+
+	/**
+	 * рассчитывает сумму выигрыша игрока в текущем раунде
+	 */
+	private function prize($winners)
+	{
+		$countWinners = count($winners); // всего победителей в текущем раунде
+		$betOfWinners = $countWinners * $this->bet; // суммарная ставка победителей она не участвует в награде
+		$prize = ($this->roundBank() - $betOfWinners) / $countWinners;
+
+		return $prize;
+	}
+
+	/**
 	 * Старт игры.
 	 * проверяет все введенные данные, количество игроков и,
 	 * если нет ошибок, то стартует игру,
@@ -361,36 +378,40 @@ class Game
 	 */
 	public function start()
 	{
+		$error = false;
 		// проверка количества игроков
 		if ($this->countPlayers() < 2) {
 			echo "Игроков должно быть 2 или 3! <br/>
 			сейчас в игре: " . $this->countPlayers();
-			die;
+			$error = true;
 		}
 		if ($this->countPlayers() > 3) {
 			echo "Игроков должно быть 2 или 3! <br/>
 			сейчас в игре: " . $this->countPlayers() . "<br />
 			этот функционал в разработке";
-			die;
+			$error = true;
 		}
 
 		//проверка размера ставки, штрафа за ничью и количества монет на счету у игроков
 		foreach ($this->players as $player) {
-			if ($player->getCoins() < $this->bet) {
-				var_dump('У игрока: ', $player->show(), 'не хватает монет для начала игры!' . PHP_EOL . 'Размер ставки: ' . $this->bet . PHP_EOL . 'У игрока на счету: ' . $player->getCoins());
-				die;
-			}
-			if ($player->getCoins() < $this->drawTax) {
-				var_dump('У игрока: ', $player->show(), 'не хватает монет для начала игры!' . PHP_EOL . 'Размер штрафа за ничью: ' . $this->drawTax . PHP_EOL . 'У игрока на счету: ' . $player->getCoins());
-				die;
+			if ($player->getCoins() < $this->bet or $player->getCoins() < $this->drawTax) {
+				echo 'У этого игрока не хватает монет для начала игры!<br/>';
+				echo 'Размер ставки: ' . $this->bet . ' <br/>';
+				echo 'Размер штрафа за ничью: ' . $this->drawTax . ' <br/>';
+				echo 'id игрока: ' . $player->id . '<br />';
+				echo 'Имя: ' . $player->name . '<br />';
+				echo 'Монет на счету: <b>' . $player->coins . ' </b><br />';
+				echo '<br /><hr /><br />';
+				$error = true;
 			}
 		}
 
+		if ($error) die;
 		// если ошибок нет, начинаем игру!
 		$this->gameProcess();
 
 		// вывод результатов
-		$this->gameResult();
+		return $this->gameResult();
 	}
 
 	/**
@@ -456,15 +477,11 @@ class Game
 	 */
 	private function twoArmCheck($player_1, $player_2)
 	{
-		/* var_dump($player_1->getArm(), $player_2->getArm());
-		
-		var_dump($player_1->getArm() == Arm::STONE);
-		var_dump($player_1->getArm() == Arm::SCISSORS);
-		var_dump($player_1->getArm() == Arm::PAPER); */
 
 		// если оба игрока выбросили одинаковую фигуру, то ничья
 		if ($player_1->getArm() == $player_2->getArm()) {
 			$this->draw([$player_1, $player_2]);
+			return;
 		}
 
 		// сравнение фигур
@@ -514,8 +531,6 @@ class Game
 			default:
 				break;
 		}
-		$player_1->freeArm();
-		$player_2->freeArm();
 	}
 
 	/**
@@ -523,88 +538,45 @@ class Game
 	 */
 	private function threeArmCheck($player_1, $player_2, $player_3)
 	{
-
-		/* var_dump($player_1->getArm(), $player_2->getArm());
-		
-		var_dump($player_1->getArm() == Arm::STONE);
-		var_dump($player_1->getArm() == Arm::SCISSORS);
-		var_dump($player_1->getArm() == Arm::PAPER); */
-
 		// если все игроки выбросили одинаковую фигуру, то ничья
 		if ($player_1->getArm() == $player_2->getArm() and $player_1->getArm() == $player_3->getArm()) {
 			$this->draw([$player_1, $player_2, $player_3]);
+			return;
 		}
 
 		// если все игроки выбросили разные фигуры, то ничья
 		if ($player_1->getArm() != $player_2->getArm() and $player_1->getArm() != $player_3->getArm() and $player_2->getArm() != $player_3->getArm()) {
 			$this->draw([$player_1, $player_2, $player_3]);
+			return;
 		}
 
-
-		// сравнение фигур у первых двух игроков
+		// попарное сравнение фигур у игроков
+		// в любом случае у 2 игроков будет одинаковая фигура
 		if ($player_1->getArm() == $player_2->getArm()) {
 			$gamers = [$player_1, $player_2];
-		} else {
-			switch ($player_1->getArm()) {
-					// у первого игрока - камень
-				case Arm::STONE:
-					// камень выигрывает у ножниц
-					if ($player_2->getArm() == Arm::SCISSORS) {
-						$gamers[] = $player_1;
-						$this->loser([$player_2]);
-					}
-					// камень проигрывает бумаге
-					if ($player_2->getArm() == Arm::PAPER) {
-						$gamers[] = $player_2;
-						$this->loser([$player_1]);
-					}
-					break;
-
-					// у первого игрока - ножницы
-				case Arm::SCISSORS:
-					// ножницы выигрывают у бумаги
-					if ($player_2->getArm() == Arm::PAPER) {
-						$gamers[] = $player_1;
-						$this->loser([$player_2]);
-					}
-					// ножницы проигрывают камню
-					if ($player_2->getArm() == Arm::STONE) {
-						$gamers[] = $player_2;
-						$this->loser([$player_1]);
-					}
-					break;
-
-					// у первого игрока - бумага
-				case Arm::PAPER:
-					// бумага выигрывает у камня
-					if ($player_2->getArm() == Arm::STONE) {
-						$gamers[] = $player_1;
-						$this->loser([$player_2]);
-					}
-					// бумага проигрывает ножницам
-					if ($player_2->getArm() == Arm::SCISSORS) {
-						$gamers[] = $player_2;
-						$this->loser([$player_1]);
-					}
-					break;
-
-				default:
-					break;
-			}
+			$player = $player_3;
+		}
+		if ($player_1->getArm() == $player_3->getArm()) {
+			$gamers = [$player_1, $player_3];
+			$player = $player_2;
+		}
+		if ($player_2->getArm() == $player_3->getArm()) {
+			$gamers = [$player_2, $player_3];
+			$player = $player_1;
 		}
 
-		// сравнение фигур у победителя и третьего игрока
+		// сравнение фигур у игрока из массива $gamers и оставшегося игрока $player	
 		switch ($gamers[0]->getArm()) {
 				// у геймера - камень
 			case Arm::STONE:
 				// камень выигрывает у ножниц
-				if ($player_3->getArm() == Arm::SCISSORS) {
+				if ($player->getArm() == Arm::SCISSORS) {
 					$this->winner($gamers);
-					$this->loser([$player_3]);
+					$this->loser([$player]);
 				}
 				// камень проигрывает бумаге
-				if ($player_3->getArm() == Arm::PAPER) {
-					$this->winner([$player_3]);
+				if ($player->getArm() == Arm::PAPER) {
+					$this->winner([$player]);
 					$this->loser($gamers);
 				}
 				break;
@@ -612,13 +584,13 @@ class Game
 				// у геймера - ножницы
 			case Arm::SCISSORS:
 				// ножницы выигрывают у бумаги
-				if ($player_3->getArm() == Arm::PAPER) {
+				if ($player->getArm() == Arm::PAPER) {
 					$this->winner($gamers);
-					$this->loser([$player_3]);
+					$this->loser([$player]);
 				}
 				// ножницы проигрывают камню
-				if ($player_3->getArm() == Arm::STONE) {
-					$this->winner([$player_3]);
+				if ($player->getArm() == Arm::STONE) {
+					$this->winner([$player]);
 					$this->loser($gamers);
 				}
 				break;
@@ -626,13 +598,13 @@ class Game
 				// у геймера - бумага
 			case Arm::PAPER:
 				// бумага выигрывает у камня
-				if ($player_3->getArm() == Arm::STONE) {
+				if ($player->getArm() == Arm::STONE) {
 					$this->winner($gamers);
-					$this->loser([$player_3]);
+					$this->loser([$player]);
 				}
 				// бумага проигрывает ножницам
-				if ($player_3->getArm() == Arm::SCISSORS) {
-					$this->winner([$player_3]);
+				if ($player->getArm() == Arm::SCISSORS) {
+					$this->winner([$player]);
 					$this->loser($gamers);
 				}
 				break;
@@ -641,9 +613,7 @@ class Game
 				break;
 		}
 
-		$player_1->freeArm();
-		$player_2->freeArm();
-		$player_3->freeArm();
+		unset($player, $gamers);
 	}
 
 	/**
@@ -653,24 +623,14 @@ class Game
 	 */
 	private function winner($winners)
 	{
-		$currentBet = $this->bet / count($winners);
+		$prize = $this->prize($winners);
+
 		foreach ($winners as $winner) {
-
-			if (is_array($winner)) {
-				var_dump($winners, $winner, count($winner));
-				foreach ($winner as $gamer) {
-					$gamer->addTotalGame($this->showPlayedRound());
-					$gamer->addWin();
-					$gamer->addCoins($currentBet);
-					$gamer->setMaxCoins();
-				}
-				return;
-			}
-
 			$winner->addTotalGame($this->showPlayedRound());
 			$winner->addWin();
-			$winner->addCoins($currentBet);
+			$winner->addCoins($prize);
 			$winner->setMaxCoins();
+			$winner->freeArm();
 		}
 	}
 
@@ -681,15 +641,9 @@ class Game
 	private function loser($losers)
 	{
 		foreach ($losers as $loser) {
-			if (is_array($loser)) {
-				foreach ($loser as $gamer) {
-					$gamer->addTotalGame($this->showPlayedRound());
-					$gamer->removeCoins($this->bet);
-				}
-				return;
-			}
 			$loser->addTotalGame($this->showPlayedRound());
 			$loser->removeCoins($this->bet);
+			$loser->freeArm();
 		}
 	}
 
@@ -701,15 +655,8 @@ class Game
 	{
 		++$this->drawTotalCount;
 		foreach ($players as $player) {
-			if (is_array($player)) {
-				foreach ($player as $gamer) {
-					$gamer->addTotalGame($this->showPlayedRound());
-					$this->makeDrawTax($gamer);
-				}
-				$this->drawCountClear();
-				return;
-			}
 			$player->addTotalGame($this->showPlayedRound());
+			//$player->freeArm();
 			$this->makeDrawTax($player);
 		}
 		$this->drawCountClear();
@@ -801,10 +748,12 @@ $coins = 500; // количество монет у игроков, так же 
 $joe = new Player;
 $joan = new Player;
 $bob = new Player;
+$bank = new Player;
 
 $joe->create(1, 'Joe', $coins);
 $joan->create(2, 'Joan', $coins);
 $bob->create(3, 'Bob', $coins);
+$bank->create(4, 'BANK', 1000);
 
 
 // создание новой игры
@@ -826,7 +775,7 @@ $game = new Game;
 # $game->goToGame($bob);
 
 // или использовать такую запись:
-$game->goToGame($joe)->goToGame($joan)->goToGame($bob);
+$game->goToGame($joe)->goToGame($joan)->goToGame($bank);
 
 
 #### Параметры игры ####
@@ -834,10 +783,10 @@ $game->goToGame($joe)->goToGame($joan)->goToGame($bob);
 $game->setRoundAmount();
 
 // установить размер ставки за каждый раунд, она должна быть меньше, чем количество монет на счету у игроков
-$game->setBet(20);
+$game->setBet(50);
 
 // установить размер штрафа за сыгранный раунд вничью, эта сумма будет списана со всех игроков
-$game->setDrawTax(10, 0);
+$game->setDrawTax(0, 0);
 
 // или можно задать все параметры в одну строку
 # $game->setRoundAmount()->setBet(20)->setDrawTax(10, 0);
